@@ -20,8 +20,8 @@ route:
 receivers:
   - name: 'telegram-notifications'
     telegram_configs:
-      - bot_token: '7768625472:AAFys_OLtXSoNjHMdYAsxQN9doJemzDKQ_k'
-        chat_id: 859564301
+      - bot_token: ''
+        chat_id: 
         parse_mode: 'HTML'
         message: |
           {{- range .Alerts }}
