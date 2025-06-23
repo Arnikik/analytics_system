@@ -1,0 +1,61 @@
+global:
+  resolve_timeout: 30s
+
+route:
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 30s
+  receiver: 'telegram-notifications'
+  # Маршрутизация по важности
+  routes:
+    - match:
+        severity: critical
+      receiver: 'telegram-notifications'
+      repeat_interval: 30s  # Чаще повторяем критические алерты
+    - match:
+        severity: warning
+      receiver: 'telegram-notifications'
+      repeat_interval: 30s
+
+receivers:
+  - name: 'telegram-notifications'
+    telegram_configs:
+      - bot_token: '7768625472:AAFys_OLtXSoNjHMdYAsxQN9doJemzDKQ_k'
+        chat_id: 859564301
+        parse_mode: 'HTML'
+        message: |
+          {{- range .Alerts }}
+          🚨 <b>{{ .Status | toUpper }}</b>
+
+          <b>Информация о тревоге:</b>
+          📢 Тип: {{ .Labels.alertname }}
+          ⚠️ Важность: {{ .Labels.severity }}
+          Хост: {{ .Labels.instance }}
+
+          <b>Детали:</b>
+          {{ if .Annotations.value -}}
+          {{ if eq .Labels.alertname "HighCPUUsage" }}💻 CPU использование: <b>{{ .Annotations.value }}</b>{{ end -}}
+          {{ if eq .Labels.alertname "HighMemoryUsage" }}💾 Память использование: <b>{{ .Annotations.value }}</b>{{ end -}}
+          {{ if eq .Labels.alertname "HighDiskUsage" }}💽 Диск использование: <b>{{ .Annotations.value }}</b>{{ end -}}
+          {{- else }}
+          (нет данных)
+          {{- end }}
+
+          <b>Описание:</b>
+          📝 {{ .Annotations.description }}
+
+          <b>Время:</b>
+          🕐 Начало: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ if eq .Status "resolved" }}
+          ✅ Разрешено: {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+          ---
+          {{ end }}
+
+# Правила подавления дублирующих алертов
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance'] 

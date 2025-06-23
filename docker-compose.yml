@@ -1,0 +1,169 @@
+services:
+  # Прокси-сервер для маршрутизации запросов
+  postgres-proxy:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: analytics_proxy
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./sql/proxy_setup.sql:/docker-entrypoint-initdb.d/proxy_setup.sql
+    networks:
+      - default_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d analytics_proxy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+      postgres-orders:
+        condition: service_healthy
+      postgres-analytics:
+        condition: service_healthy
+
+  # Шарды для пользователей
+  postgres-users:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: analytics_users
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-users-data:/var/lib/postgresql/data
+      - ./sql/init_users.sql:/docker-entrypoint-initdb.d/init_users.sql
+    networks:
+      - default_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d analytics_users"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Шарды для заказов
+  postgres-orders:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: analytics_orders
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-orders-data:/var/lib/postgresql/data
+      - ./sql/init_orders.sql:/docker-entrypoint-initdb.d/init_orders.sql
+    networks:
+      - default_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d analytics_orders"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Шарды для аналитики
+  postgres-analytics:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: analytics_data
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-analytics-data:/var/lib/postgresql/data
+      - ./sql/init_analytics.sql:/docker-entrypoint-initdb.d/init_analytics.sql
+    networks:
+      - default_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d analytics_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Мониторинг
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml
+    networks:
+      - default_network
+    depends_on:
+      postgres-exporter:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://admin:admin@postgres-users:5432/analytics_users?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - default_network
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+
+  node-exporter:
+    image: prom/node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - default_network
+
+  grafana:
+    image: grafana/grafana:11.1.0-ubuntu
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./dashboards:/etc/grafana/provisioning/dashboards
+      - ./datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - default_network
+    depends_on:
+      prometheus:
+        condition: service_started
+      postgres-proxy:
+        condition: service_healthy
+
+  alertmanager:
+    image: prom/alertmanager
+    container_name: analytics-alertmanager-1
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    networks:
+      - default_network
+
+  load-tester:
+    build:
+      context: ./load-tester
+    container_name: analytics-load-tester
+    command: tail -f /dev/null
+    networks:
+      - default_network
+
+volumes:
+  postgres-users-data:
+  postgres-orders-data:
+  postgres-analytics-data:
+  grafana-data:
+  prometheus_data:
+
+networks:
+  default_network:
+    driver: bridge
