@@ -84,10 +84,10 @@ docker-compose ps
 ### Тестирование шардинга (Java)
 ```bash
 # Компиляция
-javac -cp "lib/postgresql-42.2.18.jar" lib/ShardConnection.java
+javac -cp "lib/postgresql-42.7.7.jar" lib/ShardConnection.java
 
 # Запуск
-java -cp "lib:lib/postgresql-42.2.18.jar" ShardConnection
+java -cp "lib:lib/postgresql-42.7.7.jar" ShardConnection
 ```
 
 ### Нагрузочное тестирование (Python)
