@@ -263,10 +263,3 @@ docker-compose exec -T postgres-analytics psql -U admin analytics_data < backup_
 2. Создайте дашборд в Grafana
 3. Настройте алерты при необходимости
 
-## Лицензия
-
-MIT License
-
-## Авторы
-
-Система аналитики для интернет-магазина 
